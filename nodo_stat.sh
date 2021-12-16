@@ -7,16 +7,16 @@
 Help()
 {
    # Display Help
-   echo "===================================" 
-   echo "Hey! Here is what you can do:"
-   echo
+   echo 
+   echo "Hey there! Here is what you can do:"
    echo "Syntax: /path/nodo_stat.sh [-h|w|f|u|p]"
+   echo
    echo "options:"
    echo "h | --help    Help."
    echo "w | --work    Working nodes info"
-   echo "f | --free    Free nodes"
+   echo "f | --free    Free nodes info"
    echo "u | --user    User queue working details"
-   echo "p | --poem    Are you looking for a poem?"
+   echo "p | --pipe    first free node to pipe works"
    echo
 }
 
@@ -52,7 +52,7 @@ LOADED_NODES=$(cat infoqstat.txt | awk '$4>0.05' | grep -v NA | grep -o "\w*nodo
 # Process with the input options                           #
 ############################################################
 # Get the options
-while getopts ":hwfup --help --work --free --user --poem" option; do
+while getopts ":hwfupz --help --work --free --user --pipe --hidden" option; do
    case $option in
       h | --help) # display Help
          Help
@@ -131,9 +131,19 @@ while getopts ":hwfup --help --work --free --user --poem" option; do
                      
          done
          exit;;
+      
+      p | --pipe) # first free node to pipe works
+         declare -a ALL_NODES
+         declare -a BUSY_NODES
+         ALL_NODES=(nodo01 nodo02 nodo03 nodo04 nodo05)
+         BUSY_NODES=($SGE_RUN $SGE_WAIT $SGE_PEND $SGE_EQW $SGE_TRANS $SLURM_RUN $SLURM_WAIT $SLURM_PEND $SLURM_FAIL $SLURM_STOP $SLURM_SUS $LOADED_NODES) 
+         FREE_NODES=$(echo ${ALL_NODES[@]} ${BUSY_NODES[@]} | tr ' ' '\n' | sort | uniq -u)
+         GO_TO=$(echo $FREE_NODES | cut -d ' ' -f1)
+         echo $GO_TO
+         exit;;
  
  
-      p | --poem) # Print poem
+      z | --zzz) # Print poem
          echo
          echo "My code fails."
          echo "I do not know why."
@@ -146,7 +156,7 @@ while getopts ":hwfup --help --work --free --user --poem" option; do
 
          
      \?) # Invalid option
-         echo "Error: Invalid option"
+         echo "Error: Sorry but there is no one here with that name, please ask --help"
          exit;;
    esac
 done
