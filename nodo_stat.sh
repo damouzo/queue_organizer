@@ -8,15 +8,16 @@ Help()
 {
    # Display Help
    echo "===================================" 
-   echo "Hey! Here is what you'll find here."
+   echo "Hey! Here is what you can do:"
    echo
-   echo "Syntax: /path/nodo_stat.sh [-h|d|f|c|p]"
+   echo "Syntax: /path/nodo_stat.sh [-h|w|f|u|p]"
    echo "options:"
-   echo "h     Print Help."
-   echo "d     Print working nodes info"
-   echo "f     Display free nodes"
-   echo "p     Print a poem"
-   echo 
+   echo "h | --help    Help."
+   echo "w | --work    Working nodes info"
+   echo "f | --free    Free nodes"
+   echo "u | --user    User queue working details"
+   echo "p | --poem    Are you looking for a poem?"
+   echo
 }
 
 ############################################################
@@ -25,8 +26,8 @@ Help()
 #EXTRACT INFO
 cd /home/dmouzo/CheckNodo/
 qstat -f | awk '{gsub("-", "")}1' | awk 'NF' | tr -s ' ' | column -t > infoqstat.txt
-/opt/slurm/bin/squeue > infosqueue.txt
-/opt/slurm/bin/sinfo > infosinfo.txt
+/opt/slurm/bin/squeue | tr -s ' ' | column -t > infosqueue.txt
+/opt/slurm/bin/sinfo | tr -s ' ' | column -t > infosinfo.txt
 
 #SGE
 SGE_RUN=$(grep -i " r " -B 1 infoqstat.txt | grep -o "\w*nodo\w*" | sort -u)
@@ -51,14 +52,14 @@ LOADED_NODES=$(cat infoqstat.txt | awk '$4>0.05' | grep -v NA | grep -o "\w*nodo
 # Process with the input options                           #
 ############################################################
 # Get the options
-while getopts ":hdfp" option; do
+while getopts ":hwfup --help --work --free --user --poem" option; do
    case $option in
-      h) # display Help
+      h | --help) # display Help
          Help
          exit;;
          
          
-      d) # Print working nodes info
+      w | --work) # Print working nodes info
           echo "=============================" 
           echo "====== QUEUE ORGANAIZER =====" 
           echo "=============================" 
@@ -101,7 +102,7 @@ while getopts ":hdfp" option; do
           exit;;
           
           
-      f) # Where is free node?
+      f | --free) # Where is free node?
          declare -a ALL_NODES
          declare -a BUSY_NODES
          ALL_NODES=(nodo01 nodo02 nodo03 nodo04 nodo05)
@@ -110,8 +111,29 @@ while getopts ":hdfp" option; do
          if [ -z "$FREE_NODES" ]; then echo "Sorry, but i don´t found a node for your jobs"; else echo "> free node(s):" && echo ${FREE_NODES[@]}; fi
          exit;;
          
+         
+      u | --user) #User working
+         for NODE in nodo01 nodo02 nodo03 nodo04 nodo05; 
+         do
+           if grep -q $NODE infosqueue.txt 
+           then
+             LINE=$(grep -no $NODE infosqueue.txt | cut -d: -f1)
+             COLUMN=4
+             DOING_COL=3
+             STATE_COL=5
+             WHO=$(awk -v line="$LINE" -v col="$COLUMN" 'NR == line { print $col }' < infosqueue.txt)
+             DOING=$(awk -v line="$LINE" -v col="$DOING_COL" 'NR == line { print $col }' < infosqueue.txt)
+             STATE=$(awk -v line="$LINE" -v col="$STATE_COL" 'NR == line { print $col }' < infosqueue.txt)
+             echo $WHO "-->" $NODE "-->" $DOING "--> SLURM" "--> state:" $STATE
+           else
+             true
+           fi 
+                     
+         done
+         exit;;
  
-      p) # Print poem
+ 
+      p | --poem) # Print poem
          echo
          echo "My code fails."
          echo "I do not know why."
