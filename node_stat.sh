@@ -39,10 +39,12 @@ fi
                                     
 ###############################
 # Load node info in variables #
-###############################                                                           
-qstat -f | awk '{gsub("-", "")}1' | awk 'NF' | tr -s ' ' | column -t > $PWD/tmp/infoqstat.txt   #Introduce SGE path to qstat
-/opt/slurm/bin/squeue | tr -s ' ' | column -t > $PWD/tmp/infosqueue.txt                         #Introduce SULRM path to squeue
-/opt/slurm/bin/sinfo | tr -s ' ' | column -t > $PWD/tmp/infosinfo.txt                           #Introduce SULRM path to squeue
+###############################       
+USER_LIST=$(ls /home/)                                                    
+qstat -u $USER_LIST | awk '{gsub("-", "")}1' | awk 'NF' | tr -s ' ' | column -t > $PWD/tmp/infoqstat.txt   #Introduce SGE path to qstat
+/opt/slurm/bin/squeue | tr -s ' ' | column -t > $PWD/tmp/infosqueue.txt                                    #Introduce SLURM path to squeue
+/opt/slurm/bin/sinfo | tr -s ' ' | column -t > $PWD/tmp/infosinfo.txt                                      #Introduce SLURM path to squeue
+
 
 #SGE
 SGE_RUN=$(grep -i " r " -B 1 $PWD/tmp/infoqstat.txt | grep -o "\w*nodo\w*" | sort -u)
@@ -50,6 +52,7 @@ SGE_WAIT=$(grep -i " qw " -B 1 $PWD/tmp/infoqstat.txt | grep -o "\w*nodo\w*" | s
 SGE_PEND=$(grep -i " hqw " -B 1 $PWD/tmp/infoqstat.txt | grep -o "\w*nodo\w*" | sort -u)
 SGE_EQW=$(grep -i " Eqw " -B 1 $PWD/tmp/infoqstat.txt | grep -o "\w*nodo\w*" | sort -u)
 SGE_TRANS=$(grep -i " t " -B 1 $PWD/tmp/infoqstat.txt | grep -o "\w*nodo\w*" | sort -u)
+SGE_NODE_DOWN=$(grep -i "au" $PWD/tmp/infoqstat.txt | grep -o "\w*nodo\w*" | sort -u)
 #SLURM
 SLURM_RUN=$(grep -i "R " $PWD/tmp/infosqueue.txt | grep -o "\w*nodo\w*" | sort -u)
 SLURM_WAIT=$(grep -i " PD " $PWD/tmp/infosqueue.txt | grep -o "\w*nodo\w*" | sort -u)
@@ -60,6 +63,7 @@ SLURM_SUS=$(grep -i " S " $PWD/tmp/infosqueue.txt | grep -o "\w*nodo\w*" | sort 
 SLURM_NODE_DOWN=$(grep -i "down" $PWD/tmp/infosinfo.txt | grep -o "\w*nodo.*\w*" | sort -u)
 #LOAD NODE
 LOADED_NODES=$(cat $PWD/tmp/infoqstat.txt | awk '$4>0.05' | grep -v NA | grep -o "\w*nodo\w*" | sort -u)
+
 
 
 ##################
@@ -77,7 +81,8 @@ while getopts ":hwfupvz --help --work --free --user --pipe --version --zzz" opti
           echo
           echo "==============================" 
           echo "====== QUEUE ORGANAIZER ======" 
-          echo "==============================" 
+          echo "=============================="
+          echo 
           
           ## SGE STATUS 
           echo ">>>  WORKING W/ SGE"
@@ -91,6 +96,8 @@ while getopts ":hwfupvz --help --work --free --user --pipe --version --zzz" opti
           if [ -z "$SGE_EQW" ]; then true; else echo "> job(s) with error:" && echo $SGE_EQW; fi
               # Transferring things in SGE
           if [ -z "$SGE_TRANS" ]; then true; else echo "> transferring job(s):" && echo $SGE_TRANS; fi
+              # Nodes that goes down
+          if [ -z "$SGE_NODE_DOWN" ]; then true; else echo "> broken node communication:" && echo $SGE_NODE_DOWN; fi
           echo "------------------------------" 
                     
           ## SLURM STATUS 
@@ -137,6 +144,10 @@ while getopts ":hwfupvz --help --work --free --user --pipe --version --zzz" opti
          
          
       u | --user) #User working
+         echo
+         echo "====================================================="
+         echo "  PERSON  |   NODE   |    JOB    |  QUEUE  |  STATE" 
+         echo "=====================================================" 
          for NODE in nodo01 nodo02 nodo03 nodo04 nodo05; 
          do
            if grep -q $NODE $PWD/tmp/infosqueue.txt 
@@ -148,19 +159,30 @@ while getopts ":hwfupvz --help --work --free --user --pipe --version --zzz" opti
              WHO=$(awk -v line="$LINE" -v col="$COLUMN" 'NR == line { print $col }' < $PWD/tmp/infosqueue.txt)
              DOING=$(awk -v line="$LINE" -v col="$DOING_COL" 'NR == line { print $col }' < $PWD/tmp/infosqueue.txt)
              STATE=$(awk -v line="$LINE" -v col="$STATE_COL" 'NR == line { print $col }' < $PWD/tmp/infosqueue.txt)
-             if [ -z "$WHO" ]; then true ; else
-             echo
-             echo "====================================================="
-             echo "  PERSON  |   NODE   |    JOB    |  QUEUE  |  STATE" 
-             echo "====================================================="   
+             if [ -z "$WHO" ]; then true ; else  
              echo $WHO "-->" $NODE "-->" $DOING "--> slurm" "--> " $STATE ; fi
-             echo "====================================================="  
-             echo
+           else
+             true
+           fi 
+           
+           if grep -q $NODE $PWD/tmp/infoqstat.txt 
+           then
+             LINE=$(grep -no $NODE $PWD/tmp/infoqstat.txt  | cut -d: -f1)
+             COLUMN=4
+             DOING_COL=3
+             STATE_COL=5
+             WHO=$(awk -v line="$LINE" -v col="$COLUMN" 'NR == line { print $col }' < $PWD/tmp/infoqstat.txt)
+             DOING=$(awk -v line="$LINE" -v col="$DOING_COL" 'NR == line { print $col }' < $PWD/tmp/infoqstat.txt)
+             STATE=$(awk -v line="$LINE" -v col="$STATE_COL" 'NR == line { print $col }' < $PWD/tmp/infoqstat.txt)
+             if [ -z "$WHO" ]; then true ; else
+             echo $WHO "-->" $NODE "-->" $DOING "--> SGE " "--> " $STATE ; fi
            else
              true
            fi 
                      
          done
+         echo "=====================================================" 
+         echo
          exit;;
       
       
